@@ -45,6 +45,30 @@ def test_agent_token_is_required_for_status_and_control():
     assert changed.json()["data"]["effective_duty"] == 50
 
 
+def test_agent_status_refresh_failure_is_fast_structured_500():
+    class UnavailableService(FakeService):
+        def status(self):
+            raise RuntimeError("status_refresh_failed")
+
+    client = TestClient(
+        create_app(service=UnavailableService(), expected_token="agent-only"),
+        raise_server_exceptions=False,
+    )
+    response = client.get(
+        "/status", headers={"Authorization": "Bearer agent-only"}
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "ok": False,
+        "error": {
+            "code": "internal_error",
+            "message": "Internal control-agent error",
+        },
+        "data": None,
+    }
+
+
 def test_agent_safety_lock_is_structured_409():
     client = TestClient(create_app(service=FakeService(), expected_token="agent-only"))
 

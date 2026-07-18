@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from typing import cast
 
 import pytest
 
@@ -183,3 +184,86 @@ def test_service_serializes_policy_and_backend_mutations(tmp_path):
         thread.join()
 
     assert backend.max_active == 1
+
+
+def test_status_returns_cached_snapshot_while_tick_is_refreshing(tmp_path):
+    class BlockingBackend(FakeBackend):
+        def __init__(self, status):
+            super().__init__(status)
+            self.block_reads = False
+            self.read_started = threading.Event()
+            self.release_read = threading.Event()
+
+        def status(self):
+            if self.block_reads:
+                self.read_started.set()
+                self.release_read.wait(timeout=2)
+            return super().status()
+
+    backend = BlockingBackend(backend_status(duty=22))
+    service = ControlService(backend, make_policy(tmp_path))
+    service.tick()
+    backend.block_reads = True
+
+    refresh = threading.Thread(target=service.tick)
+    refresh.start()
+    assert backend.read_started.wait(timeout=1)
+
+    snapshots = []
+    reader = threading.Thread(target=lambda: snapshots.append(service.status()))
+    reader.start()
+    reader.join(timeout=0.1)
+    returned_without_waiting = not reader.is_alive()
+
+    backend.release_read.set()
+    refresh.join(timeout=2)
+    reader.join(timeout=2)
+
+    assert returned_without_waiting, "status blocked behind a hardware refresh"
+    assert snapshots[0]["backend"]["duty_percent"] == 22
+
+
+def test_successful_control_mutation_replaces_cached_snapshot(tmp_path):
+    backend = FakeBackend(backend_status(duty=22))
+    service = ControlService(backend, make_policy(tmp_path))
+    service.tick()
+
+    result = service.request_duty(50, 300)
+    snapshot = service.status()
+    readback = cast(dict, result["readback"])
+    backend_snapshot = cast(dict, snapshot["backend"])
+    safety_snapshot = cast(dict, snapshot["safety"])
+
+    assert readback["duty_percent"] == 50
+    assert backend_snapshot["duty_percent"] == 50
+    assert safety_snapshot["effective_duty"] == 50
+
+
+def test_failed_refresh_invalidates_cached_green_until_next_success(tmp_path):
+    class FailingBackend(FakeBackend):
+        fail_reads = False
+
+        def status(self):
+            if self.fail_reads:
+                raise RuntimeError("simulated hardware read failure")
+            return super().status()
+
+    backend = FailingBackend(backend_status(duty=22))
+    service = ControlService(backend, make_policy(tmp_path))
+    service.tick()
+    warm_backend = cast(dict, service.status()["backend"])
+    assert warm_backend["sensor_ok"] is True
+
+    backend.fail_reads = True
+    with pytest.raises(RuntimeError, match="simulated hardware read failure"):
+        service.tick()
+
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="status_refresh_failed"):
+        service.status()
+    assert time.monotonic() - started < 0.05
+
+    backend.fail_reads = False
+    service.tick()
+    recovered_backend = cast(dict, service.status()["backend"])
+    assert recovered_backend["sensor_ok"] is True
