@@ -1,3 +1,4 @@
+import copy
 import threading
 from typing import Dict, Optional
 
@@ -13,6 +14,25 @@ class ControlService:
         self.backend = backend
         self.policy = policy
         self._lock = threading.RLock()
+        self._snapshot_lock = threading.Lock()
+        self._last_status: Optional[Dict[str, object]] = None
+        self._last_status_error: Optional[str] = None
+
+    def _publish_status(self, payload: Dict[str, object]) -> Dict[str, object]:
+        with self._snapshot_lock:
+            self._last_status = copy.deepcopy(payload)
+            self._last_status_error = None
+            return copy.deepcopy(self._last_status)
+
+    def _publish_status_error(self, code: str) -> None:
+        with self._snapshot_lock:
+            self._last_status_error = code
+
+    def _cached_status(self) -> Optional[Dict[str, object]]:
+        with self._snapshot_lock:
+            if self._last_status_error is not None:
+                raise RuntimeError(self._last_status_error)
+            return copy.deepcopy(self._last_status)
 
     @staticmethod
     def _mutation_result(requested: int, decision, readback) -> Dict[str, object]:
@@ -36,7 +56,14 @@ class ControlService:
             before = self.backend.status()
             decision = self.policy.request_override(before, duty_percent, ttl_seconds)
             readback = self.backend.set_duty_percent(decision.effective_duty)
-            return self._mutation_result(duty_percent, decision, readback)
+            result = self._mutation_result(duty_percent, decision, readback)
+            self._publish_status(
+                {
+                    "backend": readback.to_dict(),
+                    "safety": decision.to_dict(),
+                }
+            )
+            return result
 
     def request_profile(self, profile: str, ttl_seconds: Optional[int] = None) -> Dict[str, object]:
         with self._lock:
@@ -47,22 +74,25 @@ class ControlService:
             return result
 
     def tick(self) -> Dict[str, object]:
-        with self._lock:
-            before = self.backend.status()
-            decision = self.policy.evaluate(before)
-            readback = before
-            if before.mode != "manual" or before.duty_percent != decision.effective_duty:
-                readback = self.backend.set_duty_percent(decision.effective_duty)
-            return {
-                "backend": readback.to_dict(),
-                "safety": decision.to_dict(),
-            }
+        try:
+            with self._lock:
+                before = self.backend.status()
+                decision = self.policy.evaluate(before)
+                readback = before
+                if before.mode != "manual" or before.duty_percent != decision.effective_duty:
+                    readback = self.backend.set_duty_percent(decision.effective_duty)
+                return self._publish_status(
+                    {
+                        "backend": readback.to_dict(),
+                        "safety": decision.to_dict(),
+                    }
+                )
+        except Exception:
+            self._publish_status_error("status_refresh_failed")
+            raise
 
     def status(self) -> Dict[str, object]:
-        with self._lock:
-            backend_status = self.backend.status()
-            decision = self.policy.evaluate(backend_status)
-            return {
-                "backend": backend_status.to_dict(),
-                "safety": decision.to_dict(),
-            }
+        cached = self._cached_status()
+        if cached is not None:
+            return cached
+        return self.tick()
