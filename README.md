@@ -62,7 +62,7 @@ The included [docker-compose.yaml](docker-compose.yaml) maps `30082:5002`, leave
    export TRUENAS_PASSWORD_PATH=/secure/path/truenas-pass
    ```
 
-3. Review TLS settings. The example explicitly sets `BMC_TLS_VERIFY: "false"` for a self-signed Fleet BMC and keeps TrueNAS verification enabled. Prefer installing the relevant CA and enabling BMC verification when possible.
+3. Review TLS settings. The Fleet example explicitly sets both `BMC_TLS_VERIFY: "false"` and `TRUENAS_TLS_VERIFY: "false"` because those private-IP appliance endpoints use locally generated certificates. Generic installs default to verification enabled; prefer installing the relevant CA and enabling verification when possible.
 4. Build and start:
 
    ```sh

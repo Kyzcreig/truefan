@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -13,7 +14,7 @@ def test_one_non_root_current_image_contains_both_components_and_tools():
     entrypoint = read("entrypoint.sh")
 
     assert "bullseye" not in dockerfile.lower()
-    assert "python:3.13-slim-bookworm" in dockerfile
+    assert "python:3.13-slim-bookworm@sha256:" in dockerfile
     assert "ipmitool" in dockerfile
     assert "smartmontools" in dockerfile
     assert "requirements.txt" in dockerfile
@@ -61,6 +62,7 @@ def test_ast2600_compose_has_no_literal_secrets_or_published_agent_port():
         assert variable in compose
     assert "privileged:" not in compose
     assert "network_mode: host" not in compose
+    assert 'TRUENAS_TLS_VERIFY: "false"' in compose
     assert "password:" not in compose.lower()
 
 
@@ -73,6 +75,9 @@ def test_github_image_workflow_uses_sha_branch_tags_and_github_token():
     assert "type=ref,event=branch" in workflow
     assert "secrets.GITHUB_TOKEN" in workflow
     assert "packages: write" in workflow
+    uses = [line.strip() for line in workflow.splitlines() if line.strip().startswith("uses:") or "- uses:" in line]
+    assert len(uses) == 5
+    assert all(re.search(r"@[0-9a-f]{40}(?:\s+#.*)?$", line) for line in uses)
 
 
 def test_docker_context_excludes_repository_metadata_tests_and_bytecode():

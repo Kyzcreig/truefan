@@ -274,3 +274,33 @@ $ python3 -m pytest -q tests/test_distribution_contract.py::test_docker_context_
 F                                                                        [100%]
 1 failed in 0.03s
 ```
+
+## Cluster 13 — deployment-chain pinning and Fleet TLS reality
+
+RED, during Apollo's independent review after the implementation commit:
+
+```text
+$ /opt/homebrew/bin/python3 -m pytest -q tests/test_distribution_contract.py
+F.FF.                                                                    [100%]
+3 failed, 2 passed in 0.14s
+```
+
+The failures proved the image base was tag-only, five GitHub Actions used mutable major tags, and the Fleet compose expected public-CA validation from the TrueNAS private-IP appliance certificate.
+
+GREEN after pinning the Python OCI index digest and exact Action commits, and documenting the Fleet-only TLS exception while leaving generic code defaults secure:
+
+```text
+$ /opt/homebrew/bin/python3 -m pytest -q
+..........................................                               [100%]
+42 passed in 2.34s
+
+$ docker build --platform linux/amd64 -t truefan:ast2600-hardened .
+#15 exporting manifest list sha256:6340b9d3c31c345f5b45a17182cfff61346eaf11055a23e60993341ec18a21f1
+#15 DONE 0.5s
+
+$ docker image inspect truefan:ast2600-hardened
+arch=amd64 os=linux user=truefan
+
+$ docker run --rm --platform linux/amd64 --entrypoint python truefan:ast2600-hardened -m pip check
+No broken requirements found.
+```

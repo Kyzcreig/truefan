@@ -42,7 +42,8 @@ services:
       TRUENAS_HOST: ${TRUENAS_HOST:?Set TRUENAS_HOST}
       TRUENAS_USER_FILE: /run/secrets/truenas_user
       TRUENAS_PASSWORD_FILE: /run/secrets/truenas_pass
-      TRUENAS_TLS_VERIFY: "true"
+      # Fleet NAS uses its appliance-generated certificate on a private IP.
+      TRUENAS_TLS_VERIFY: "false"
       CONTROL_STATE_PATH: /data/control-state.json
     secrets:
       - agent_token
