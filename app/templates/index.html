@@ -1,134 +1,130 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TrueFan Monitor</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>TrueFan · NAS cooling</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/js/dashboard.js" defer></script>
 </head>
 <body>
-  <main class="wrap">
-    <header class="card header">
-      <h1>TRUEFAN MONITOR</h1>
-      <span id="updated-at" class="muted">Loading...</span>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="TrueFan home">
+        <span class="brand-mark"><img src="/static/icons/cooling-fan.svg" alt=""></span>
+        <span><strong>TrueFan</strong><small>NAS cooling control</small></span>
+      </a>
+      <div class="topbar-meta">
+        <span class="authority-badge"><span class="pulse"></span>External watchdog: authoritative</span>
+        <span id="last-refresh" class="refresh">Waiting for telemetry</span>
+      </div>
     </header>
 
-    <section id="smart-warning" class="warn hidden">
-      [ WARN ] SMART access unavailable - reduced monitoring mode
+    <section class="hero panel" aria-labelledby="overview-title">
+      <div class="hero-copy">
+        <p class="eyebrow" id="overview-title">Cooling posture</p>
+        <div class="state-line">
+          <span id="state-orb" class="state-orb" data-state="unknown"></span>
+          <h1 id="safety-state">Connecting</h1>
+        </div>
+        <p id="safety-reason" class="hero-description">Reading the control agent and sensor sources…</p>
+      </div>
+      <div class="hero-stats">
+        <div><span>Verified duty</span><strong id="duty-percent">--%</strong></div>
+        <div><span>BMC mode</span><strong id="bmc-mode">Unknown</strong></div>
+        <div><span>Agent</span><strong id="agent-state">Connecting</strong></div>
+      </div>
     </section>
 
-    <section class="grid">
-      <article class="card">
-        <h2>System</h2>
-        <div class="row"><span>Mode</span><span id="mode">unknown</span></div>
-        <div class="row"><span>Agent</span><span id="agent">unknown</span></div>
-        <div class="row"><span>SMART</span><span id="smart">unknown</span></div>
+    <section class="metric-grid" aria-label="Temperature overview">
+      <article class="metric panel">
+        <div class="metric-icon drive-icon">H</div>
+        <div><span>Max HDD</span><strong id="temp-max-drive">--°</strong><small>Hot above 44°C</small></div>
       </article>
-
-      <article class="card">
-        <h2>Temperatures</h2>
-        <div class="row"><span>CPU</span><span id="temp-cpu">--</span></div>
-        <div class="row"><span>NVMe</span><span id="temp-nvme">--</span></div>
-        <div class="row"><span>HDD</span><span id="temp-hdd">--</span></div>
+      <article class="metric panel">
+        <div class="metric-icon cpu-icon">C</div>
+        <div><span>CPU</span><strong id="temp-cpu">--°</strong><small>Hot above 70°C</small></div>
       </article>
-
-      <article class="card">
-        <h2>Fan Speeds</h2>
-        <div id="fan-speeds"></div>
+      <article class="metric panel">
+        <div class="metric-icon board-icon">B</div>
+        <div><span>Board</span><strong id="temp-board">--°</strong><small>Redfish thermal</small></div>
+      </article>
+      <article class="metric panel">
+        <div class="metric-icon nvme-icon">N</div>
+        <div><span>NVMe</span><strong id="temp-nvme">--°</strong><small>TrueNAS telemetry</small></div>
       </article>
     </section>
+
+    <div class="content-grid">
+      <section class="panel data-panel" aria-labelledby="drives-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">Storage</p><h2 id="drives-title">Drive temperatures</h2></div>
+          <span id="drive-count" class="count-badge">0 drives</span>
+        </div>
+        <div id="drive-grid" class="drive-grid" aria-live="polite">
+          <p class="empty-state">Waiting for TrueNAS telemetry…</p>
+        </div>
+      </section>
+
+      <section class="panel data-panel" aria-labelledby="fans-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">Airflow</p><h2 id="fans-title">Fan speeds</h2></div>
+          <span id="fan-count" class="count-badge">0 fans</span>
+        </div>
+        <div id="fan-grid" class="fan-grid" aria-live="polite">
+          <p class="empty-state">Waiting for Redfish telemetry…</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel controls" aria-labelledby="controls-title">
+      <div class="section-heading controls-heading">
+        <div><p class="eyebrow">Bounded override</p><h2 id="controls-title">Fan control</h2></div>
+        <span id="control-lock" class="lock-badge">Checking safety state</span>
+      </div>
+
+      <div class="auth-row">
+        <label for="write-token">UI write token <span>kept in this tab only</span></label>
+        <div class="token-field">
+          <input id="write-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste control token">
+          <button id="save-token" class="button secondary" type="button">Use token</button>
+        </div>
+      </div>
+
+      <div class="profile-row" aria-label="Fan profiles">
+        <button class="profile-button" data-profile="quiet" type="button"><span>Quiet</span><strong>22%</strong></button>
+        <button class="profile-button" data-profile="cooling" type="button"><span>Cooling</span><strong>50%</strong></button>
+        <button class="profile-button emergency" data-profile="emergency" type="button"><span>Emergency</span><strong>100%</strong></button>
+      </div>
+
+      <div class="manual-control">
+        <div class="slider-heading">
+          <label for="duty-slider">Manual duty</label>
+          <output id="slider-value" for="duty-slider">50%</output>
+        </div>
+        <input id="duty-slider" type="range" min="22" max="100" step="1" value="50">
+        <div class="control-actions">
+          <label for="ttl-seconds">Override TTL</label>
+          <select id="ttl-seconds">
+            <option value="60">1 minute</option>
+            <option value="300" selected>5 minutes</option>
+            <option value="600">10 minutes</option>
+            <option value="900">15 minutes</option>
+          </select>
+          <button id="apply-duty" class="button primary" type="button">Apply override</button>
+        </div>
+      </div>
+      <div id="control-result" class="control-result" role="status" aria-live="polite">No control action this session.</div>
+      <p class="safety-note">TrueFan overrides are time-limited. Hot temperatures and sensor failures take priority; the external watchdog may overwrite any app setting.</p>
+    </section>
+
+    <footer>
+      <span>TrueFan control plane</span>
+      <span id="backend-name">Backend: unknown</span>
+    </footer>
   </main>
-
-  <script>
-    const els = {
-      mode: document.getElementById("mode"),
-      agent: document.getElementById("agent"),
-      smart: document.getElementById("smart"),
-      cpu: document.getElementById("temp-cpu"),
-      nvme: document.getElementById("temp-nvme"),
-      hdd: document.getElementById("temp-hdd"),
-      fanSpeeds: document.getElementById("fan-speeds"),
-      warning: document.getElementById("smart-warning"),
-      updated: document.getElementById("updated-at"),
-    };
-
-    function setText(el, value) {
-      if (el) {
-        el.textContent = String(value);
-      }
-    }
-
-    function findTemp(sensors, name) {
-      if (!Array.isArray(sensors)) {
-        return "--";
-      }
-      const match = sensors.find((item) => item && item.name === name);
-      if (!match || match.value === undefined || match.value === null) {
-        return "--";
-      }
-      return `${match.value} C`;
-    }
-
-    function render(status) {
-      const safe = status && typeof status === "object" ? status : {};
-      const capabilities = safe.capabilities && typeof safe.capabilities === "object" ? safe.capabilities : {};
-      const sensors = Array.isArray(safe.sensors) ? safe.sensors : [];
-      const fan = safe.fan && typeof safe.fan === "object" ? safe.fan : {};
-      const smartAvailable = capabilities.smart_available !== false;
-
-      setText(els.mode, safe.mode || "monitoring-only");
-      setText(els.agent, safe.agent_available ? "online" : "offline");
-      setText(els.smart, smartAvailable ? "available" : "unavailable");
-      setText(els.cpu, findTemp(sensors, "cpu"));
-      setText(els.nvme, findTemp(sensors, "nvme"));
-      setText(els.hdd, findTemp(sensors, "hdd"));
-      setText(els.updated, new Date().toLocaleTimeString());
-
-      if (els.warning) {
-        els.warning.classList.toggle("hidden", smartAvailable);
-      }
-
-      if (els.fanSpeeds) {
-        els.fanSpeeds.innerHTML = "";
-        for (const [name, value] of Object.entries(fan)) {
-          const row = document.createElement("div");
-          row.className = "row";
-          if (Number(value) === 0) {
-            row.classList.add("muted");
-          }
-
-          const left = document.createElement("span");
-          left.textContent = `${name}:`;
-          const right = document.createElement("span");
-          right.textContent = `${value} RPM`;
-          row.appendChild(left);
-          row.appendChild(right);
-          els.fanSpeeds.appendChild(row);
-        }
-      }
-    }
-
-    async function pollStatus() {
-      try {
-        const res = await fetch("/status", { cache: "no-store" });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const payload = await res.json();
-        render(payload);
-      } catch (_error) {
-        render({
-          mode: "monitoring-only",
-          agent_available: false,
-          capabilities: { smart_available: false },
-          sensors: [],
-          fan: {},
-        });
-      }
-    }
-
-    pollStatus();
-    window.setInterval(pollStatus, 5000);
-  </script>
 </body>
 </html>

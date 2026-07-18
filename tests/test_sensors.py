@@ -7,6 +7,7 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 import hwmon  # noqa: E402
+import sensors as sensor_module  # noqa: E402
 import server  # noqa: E402
 import temperature_sources  # noqa: E402
 
@@ -65,3 +66,21 @@ def test_status_endpoint_returns_valid_json(monkeypatch):
     assert isinstance(payload.get("sensors"), list)
     assert payload["sensors"]
     assert all("name" in item and "value" in item for item in payload["sensors"])
+
+
+def test_smartctl_subprocess_is_an_argv_list_with_shell_disabled(monkeypatch):
+    calls = []
+
+    class Completed:
+        stdout = '{"temperature":{"current":42}}'
+        stderr = ""
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return Completed()
+
+    monkeypatch.setattr(sensor_module.subprocess, "run", run)
+
+    assert sensor_module.read_smartctl_temperature("/dev/fake") == 42.0
+    assert calls[0][0] == ["smartctl", "--json", "-A", "/dev/fake"]
+    assert calls[0][1]["shell"] is False

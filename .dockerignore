@@ -1,0 +1,13 @@
+.git
+.github
+.pytest_cache
+.env
+.env.*
+**/__pycache__
+**/*.pyc
+**/*.pyo
+docs
+tests
+logs
+docker-compose.yaml
+release.sh
