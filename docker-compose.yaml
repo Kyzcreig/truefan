@@ -1,17 +1,74 @@
 services:
-  truefan:
+  truefan-core:
+    image: ${TRUEFAN_IMAGE:-ghcr.io/kyzcreig/truefan:main}
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: truefan
     restart: unless-stopped
-    volumes:
-      - /sys/class/hwmon:/sys/class/hwmon:ro
-      # Replace /dev/sda with the target block device as needed.
-      - /dev/sda:/dev/sda:ro
-      - /etc/sensors3.conf:/etc/sensors3.conf:ro
-    working_dir: /app
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      truefan-control:
+        condition: service_healthy
     ports:
-      - "5002:5002"
+      - "30082:5002"
     environment:
-      - TZ=America/Chicago
+      TRUEFAN_COMPONENT: truefan-core
+      CONTROL_AGENT_URL: http://truefan-control:5088
+      CONTROL_AGENT_TOKEN_FILE: /run/secrets/agent_token
+      TRUEFAN_UI_WRITE_TOKEN_FILE: /run/secrets/ui_write_token
+    secrets:
+      - agent_token
+      - ui_write_token
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+
+  truefan-control:
+    image: ${TRUEFAN_IMAGE:-ghcr.io/kyzcreig/truefan:main}
+    build:
+      context: .
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      TRUEFAN_COMPONENT: truefan-control
+      TRUEFAN_BACKEND: ast2600_ipmi
+      TRUEFAN_AGENT_SECRET_FILE: /run/secrets/agent_token
+      BMC_HOST: ${BMC_HOST:?Set BMC_HOST}
+      BMC_USER_FILE: /run/secrets/bmc_user
+      BMC_PASSWORD_FILE: /run/secrets/bmc_pass
+      BMC_TLS_VERIFY: "false"
+      TRUENAS_HOST: ${TRUENAS_HOST:?Set TRUENAS_HOST}
+      TRUENAS_USER_FILE: /run/secrets/truenas_user
+      TRUENAS_PASSWORD_FILE: /run/secrets/truenas_pass
+      # Fleet NAS uses its appliance-generated certificate on a private IP.
+      TRUENAS_TLS_VERIFY: "false"
+      CONTROL_STATE_PATH: /data/control-state.json
+    secrets:
+      - agent_token
+      - bmc_user
+      - bmc_pass
+      - truenas_user
+      - truenas_pass
+    volumes:
+      - truefan-state:/data
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+
+secrets:
+  agent_token:
+    file: ${TRUEFAN_AGENT_SECRET_PATH:?Set TRUEFAN_AGENT_SECRET_PATH}
+  ui_write_token:
+    file: ${TRUEFAN_UI_WRITE_TOKEN_PATH:?Set TRUEFAN_UI_WRITE_TOKEN_PATH}
+  bmc_user:
+    file: ${BMC_USER_PATH:?Set BMC_USER_PATH}
+  bmc_pass:
+    file: ${BMC_PASSWORD_PATH:?Set BMC_PASSWORD_PATH}
+  truenas_user:
+    file: ${TRUENAS_USER_PATH:?Set TRUENAS_USER_PATH}
+  truenas_pass:
+    file: ${TRUENAS_PASSWORD_PATH:?Set TRUENAS_PASSWORD_PATH}
+
+volumes:
+  truefan-state:

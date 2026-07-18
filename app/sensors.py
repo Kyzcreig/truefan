@@ -98,6 +98,7 @@ def read_smartctl_temperature(device: str) -> Union[float, Dict[str, bool], None
     try:
         proc = subprocess.run(
             ["smartctl", "--json", "-A", device],
+            shell=False,
             capture_output=True,
             text=True,
             check=False,
