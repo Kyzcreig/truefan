@@ -29,6 +29,7 @@
     ttl: byId("ttl-seconds"),
     apply: byId("apply-duty"),
     result: byId("control-result"),
+    lockHint: byId("lock-hint"),
     profiles: Array.from(document.querySelectorAll("[data-profile]")),
   };
 
@@ -87,15 +88,47 @@
     container.appendChild(item);
   }
 
-  function updateControlAvailability(enabled, reason) {
+  const LOCK_EXPLANATIONS = {
+    hot_threshold: "Hot threshold: a drive is above 44°C or CPU above 70°C. Fans are forced to 100% and only the Emergency profile is accepted until drives cool to ≤40°C and CPU to ≤60°C.",
+    cooling_band: "Cooling: recovering from a hot incident. Duty is held at ≥50% until drives reach ≤40°C and CPU ≤60°C.",
+    sensor_failure_fail_closed: "Sensor failure: temperature readings are unavailable, so lowering fan duty is refused (fail-closed).",
+    "status unavailable": "The dashboard cannot reach the control agent. Monitoring and control are unavailable.",
+    "Agent offline": "The control agent is offline. Fan control is unavailable; monitoring may be stale.",
+    "Applying override": "A control request is in flight — waiting for the write and read-back verification.",
+  };
+
+  function lockExplanation(reason) {
+    return LOCK_EXPLANATIONS[reason]
+      || (reason ? `Controls locked: ${titleCase(reason)}.` : "Controls are locked by the safety policy.");
+  }
+
+  function updateControlAvailability(enabled, reason, safetyState) {
     serverAllowsControl = Boolean(enabled);
     const disabled = !serverAllowsControl || actionInFlight;
-    elements.slider.disabled = disabled;
-    elements.ttl.disabled = disabled;
-    elements.apply.disabled = disabled;
-    elements.profiles.forEach((button) => { button.disabled = disabled; });
+    const explanation = disabled ? lockExplanation(reason) : "";
+    // During a hot lock the policy still accepts 100% — keep Emergency usable.
+    const hotLocked = disabled && safetyState === "hot" && !actionInFlight;
+    const controls = [elements.slider, elements.ttl, elements.apply, ...elements.profiles];
+    controls.forEach((control) => {
+      const isEmergency = control.dataset && control.dataset.profile === "emergency";
+      const controlDisabled = disabled && !(hotLocked && isEmergency);
+      control.disabled = controlDisabled;
+      if (controlDisabled) control.title = explanation;
+      else if (hotLocked && isEmergency) control.title = "Hot threshold active — Emergency (100%) is the only accepted override.";
+      else control.removeAttribute("title");
+    });
     elements.lock.dataset.locked = String(!serverAllowsControl);
-    text(elements.lock, serverAllowsControl ? "Safety checks active" : reason || "Controls locked");
+    if (serverAllowsControl) {
+      text(elements.lock, "Safety checks active");
+      elements.lock.removeAttribute("title");
+    } else {
+      text(elements.lock, reason ? `Locked: ${titleCase(reason)}` : "Controls locked");
+      elements.lock.title = explanation;
+    }
+    if (elements.lockHint) {
+      text(elements.lockHint, explanation);
+      elements.lockHint.hidden = !disabled;
+    }
   }
 
   function render(payload) {
@@ -141,7 +174,7 @@
     text(elements.fanCount, `${fanEntries.length} fan${fanEntries.length === 1 ? "" : "s"}`);
 
     const locked = safety.controls_locked === true;
-    updateControlAvailability(data.pwm_control_enabled === true && !locked, locked ? titleCase(safety.reason) : "Agent offline");
+    updateControlAvailability(data.pwm_control_enabled === true && !locked, locked ? (safety.reason || "") : "Agent offline", state);
   }
 
   function showResult(message, kind = "") {
@@ -174,7 +207,7 @@
   async function runAction(action) {
     if (actionInFlight) return;
     actionInFlight = true;
-    updateControlAvailability(serverAllowsControl, "Applying override");
+    updateControlAvailability(serverAllowsControl, "Applying override", "");
     showResult("Applying and verifying the requested duty…");
     try {
       const result = await action();
@@ -188,7 +221,7 @@
       showResult(error.message || "Control request failed.", "error");
     } finally {
       actionInFlight = false;
-      updateControlAvailability(serverAllowsControl, "Controls locked");
+      updateControlAvailability(serverAllowsControl, "Controls locked", "");
     }
   }
 

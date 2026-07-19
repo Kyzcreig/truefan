@@ -319,3 +319,14 @@ footer { justify-content: space-between; gap: 20px; padding: 20px 4px 0; color: 
   .control-actions select { width: 100%; }
   .controls-heading { align-items: flex-start; flex-direction: column; }
 }
+
+.lock-hint {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-left: 3px solid #e0637f;
+  background: rgba(224, 99, 127, 0.08);
+  border-radius: 6px;
+  color: #d9a1b0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
