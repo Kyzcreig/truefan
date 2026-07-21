@@ -32,7 +32,7 @@
     refresh: byId("last-refresh"),
     maxDrive: byId("temp-max-drive"),
     cpu: byId("temp-cpu"),
-    board: byId("temp-board"),
+    avgDrive: byId("temp-avg-drive"),
     nvme: byId("temp-nvme"),
     driveGrid: byId("drive-grid"),
     driveCount: byId("drive-count"),
@@ -182,10 +182,20 @@
 
     temperature(elements.maxDrive, "max_drive_c", temperatures.max_drive_c);
     temperature(elements.cpu, "cpu_c", temperatures.cpu_c);
-    temperature(elements.board, "board_c", temperatures.board_c);
     temperature(elements.nvme, "nvme_c", temperatures.nvme_c);
 
     const drives = Array.isArray(data.drives) ? data.drives : [];
+    // Avg HDD: mean across the spinning drives (exclude NVMe — separate card, different
+    // device class). Coloured on the same drive thresholds as Max HDD. Always populated
+    // from data /status already sends, unlike the board sensor this card replaced.
+    const hddTemps = drives
+      .filter((d) => !/^nvme/i.test(d.name || ""))
+      .map((d) => Number(d.temperature_c))
+      .filter((v) => Number.isFinite(v));
+    const avgHdd = hddTemps.length
+      ? hddTemps.reduce((sum, v) => sum + v, 0) / hddTemps.length
+      : null;
+    temperature(elements.avgDrive, "max_drive_c", avgHdd);
     elements.driveGrid.replaceChildren();
     drives.forEach((drive) => {
       const value = Number(drive.temperature_c);

@@ -18,7 +18,7 @@ def test_dashboard_has_required_monitoring_and_percent_controls():
     assert 'id="duty-percent"' in html
     assert 'id="temp-max-drive"' in html
     assert 'id="temp-cpu"' in html
-    assert 'id="temp-board"' in html
+    assert 'id="temp-avg-drive"' in html
     assert 'id="temp-nvme"' in html
     assert 'id="drive-grid"' in html
     assert 'id="fan-grid"' in html
@@ -58,9 +58,9 @@ def test_mobile_css_prevents_390px_horizontal_overflow():
 
 
 def test_hidden_attribute_beats_class_display_rules():
-    # data-optional cards (e.g. Board when Redfish has no temp) set hidden=true in JS;
-    # without this rule .metric{display:flex} wins on specificity and the card stays
-    # visible. Regression guard for the live bug where Board showed a dead --deg.
+    # Any element with the hidden attribute must actually hide: class rules like
+    # .metric{display:flex} otherwise win on specificity over the UA [hidden] default.
+    # Kept as a defensive default for future data-optional elements.
     css = read("app/static/style.css")
 
     assert "[hidden]" in css
@@ -72,3 +72,17 @@ def test_dashboard_formats_missing_values_and_machine_reasons_for_people():
 
     assert 'replaceAll("_", " ")' in javascript
     assert "value === null || value === undefined" in javascript
+
+
+def test_avg_hdd_card_replaces_board_and_is_computed_client_side():
+    # The Board card (board_c often null on this BMC) was replaced by an always-
+    # populated Avg HDD card computed from the drives array /status already sends.
+    html = read("app/templates/index.html")
+    javascript = read("app/static/js/dashboard.js")
+
+    assert 'id="temp-avg-drive"' in html
+    assert 'id="temp-board"' not in html
+    # averaged over spinning drives, NVMe excluded, coloured on drive thresholds
+    assert "avgDrive" in javascript
+    assert "nvme" in javascript.lower()
+    assert 'temperature(elements.avgDrive, "max_drive_c"' in javascript
