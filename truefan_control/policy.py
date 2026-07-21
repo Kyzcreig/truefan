@@ -14,6 +14,26 @@ from .backend import BackendStatus
 DEFAULT_TTL_SECONDS = 300
 MAX_TTL_SECONDS = 900
 
+# Single source of truth for every temperature threshold.
+# SAFETY thresholds (drive/cpu hot + recovery) drive the fan policy in evaluate();
+# the display-only warm/hot tiers let the dashboard colour every sensor from ONE
+# authoritative place (previously duplicated as magic numbers in dashboard.js).
+# Per-device ranges are intentionally distinct — a CPU tolerates far more than an HDD.
+HOT_DRIVE_C = 44        # max HDD above this -> hot (fans forced 100%)
+HOT_CPU_C = 70          # cpu above this -> hot
+RECOVER_DRIVE_C = 40    # both must fall to/below these to clear a hot incident
+RECOVER_CPU_C = 60
+
+# {sensor_key: {"warm": x, "hot": y}} — consumed by /status and the dashboard.
+# drive/cpu "hot" mirror the safety numbers above (kept in sync via the refs below).
+THRESHOLDS = {
+    "max_drive_c": {"warm": 41, "hot": HOT_DRIVE_C},
+    "cpu_c": {"warm": 61, "hot": HOT_CPU_C},
+    "board_c": {"warm": 55, "hot": 70},
+    "nvme_c": {"warm": 60, "hot": 75},
+    "recover": {"drive": RECOVER_DRIVE_C, "cpu": RECOVER_CPU_C},
+}
+
 
 class SafetyLocked(RuntimeError):
     code = "safety_locked"
@@ -159,7 +179,7 @@ class SafetyPolicy:
 
             cpu_c = float(cpu_c)
             drive_c = float(drive_c)
-            if drive_c > 44 or cpu_c > 70:
+            if drive_c > HOT_DRIVE_C or cpu_c > HOT_CPU_C:
                 if not self._state.get("previous_hot"):
                     self._state["previous_hot"] = True
                     self._save()
@@ -171,7 +191,7 @@ class SafetyPolicy:
                     override_expires_at=override_expiry,
                 )
 
-            recovered = drive_c <= 40 and cpu_c <= 60
+            recovered = drive_c <= RECOVER_DRIVE_C and cpu_c <= RECOVER_CPU_C
             if self._state.get("previous_hot") and not recovered:
                 candidate = requested_duty if requested_duty is not None else override_duty
                 return SafetyDecision(

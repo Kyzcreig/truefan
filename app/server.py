@@ -128,6 +128,7 @@ def _build_status_payload() -> dict:
     temperatures = backend.get("temperatures") or {}
     fan_rpms = backend.get("fan_rpms") or {}
     drives = temperatures.get("drives_c") or {}
+    thresholds = agent_data.get("thresholds") or {}
 
     payload.update(
         {
@@ -138,6 +139,7 @@ def _build_status_payload() -> dict:
             "backend": backend,
             "safety": safety,
             "temperatures": temperatures,
+            "thresholds": thresholds,
             "drives": [
                 {"name": name, "temperature_c": value}
                 for name, value in sorted(drives.items(), key=lambda item: item[1], reverse=True)
