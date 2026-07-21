@@ -57,6 +57,16 @@ def test_mobile_css_prevents_390px_horizontal_overflow():
     assert "minmax(0, 1fr)" in css
 
 
+def test_hidden_attribute_beats_class_display_rules():
+    # data-optional cards (e.g. Board when Redfish has no temp) set hidden=true in JS;
+    # without this rule .metric{display:flex} wins on specificity and the card stays
+    # visible. Regression guard for the live bug where Board showed a dead --deg.
+    css = read("app/static/style.css")
+
+    assert "[hidden]" in css
+    assert "display: none !important" in css
+
+
 def test_dashboard_formats_missing_values_and_machine_reasons_for_people():
     javascript = read("app/static/js/dashboard.js")
 

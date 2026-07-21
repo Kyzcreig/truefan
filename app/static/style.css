@@ -19,6 +19,13 @@
   box-sizing: border-box;
 }
 
+/* The `hidden` attribute must always win — class rules like `.metric { display: flex }`
+   otherwise beat the UA `[hidden]` default (specificity 0,1,0 vs 0,0,0), leaving
+   data-optional cards (e.g. Board when Redfish reports no temp) stuck visible. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   width: 100%;
