@@ -3,7 +3,7 @@ import threading
 from typing import Dict, Optional
 
 from .backend import FanBackend
-from .policy import SafetyPolicy
+from .policy import SafetyPolicy, THRESHOLDS
 
 
 PROFILES = {"quiet": 22, "cooling": 50, "emergency": 100}
@@ -19,6 +19,9 @@ class ControlService:
         self._last_status_error: Optional[str] = None
 
     def _publish_status(self, payload: Dict[str, object]) -> Dict[str, object]:
+        # Attach the authoritative thresholds so /status is the single source the
+        # dashboard colours from (no duplicated magic numbers in the frontend).
+        payload.setdefault("thresholds", THRESHOLDS)
         with self._snapshot_lock:
             self._last_status = copy.deepcopy(payload)
             self._last_status_error = None

@@ -3,6 +3,24 @@
 
   const POLL_MS = 5000;
   const TOKEN_KEY = "truefan.uiWriteToken";
+
+  // Fallback thresholds ONLY if /status doesn't carry them (older agent). The
+  // server (truefan_control/policy.py THRESHOLDS) is the authoritative source.
+  const DEFAULT_THRESHOLDS = {
+    max_drive_c: { warm: 41, hot: 44 },
+    cpu_c: { warm: 61, hot: 70 },
+    board_c: { warm: 55, hot: 70 },
+    nvme_c: { warm: 60, hot: 75 },
+  };
+  let thresholds = DEFAULT_THRESHOLDS;
+
+  function tier(sensorKey, value) {
+    const t = thresholds[sensorKey] || DEFAULT_THRESHOLDS[sensorKey];
+    if (!t || value === null) return "";
+    if (value > t.hot) return "temp-hot";
+    if (value >= t.warm) return "temp-warm";
+    return "";
+  }
   const byId = (id) => document.getElementById(id);
   const elements = {
     safetyState: byId("safety-state"),
@@ -51,17 +69,25 @@
     return Number.isFinite(numeric) ? numeric : null;
   }
 
-  function temperature(element, value, warm, hot) {
+  function temperature(element, sensorKey, value) {
     if (!element) return;
     element.classList.remove("temp-warm", "temp-hot");
     const numeric = finiteNumber(value);
+    // #2: cards flagged data-optional hide entirely when their source reports
+    // nothing (e.g. board_c is null on this BMC) instead of showing a dead --°.
+    const card = element.closest("[data-optional]");
     if (numeric === null) {
+      if (card) {
+        card.hidden = true;
+        return;
+      }
       text(element, "--°");
       return;
     }
+    if (card) card.hidden = false;
     text(element, `${numeric.toFixed(1)}°`);
-    if (numeric > hot) element.classList.add("temp-hot");
-    else if (numeric >= warm) element.classList.add("temp-warm");
+    const cls = tier(sensorKey, numeric);
+    if (cls) element.classList.add(cls);
   }
 
   function telemetryRow(name, value, temperatureValue = null) {
@@ -73,8 +99,8 @@
     const reading = document.createElement("strong");
     reading.textContent = value;
     if (temperatureValue !== null) {
-      if (temperatureValue > 44) reading.classList.add("temp-hot");
-      else if (temperatureValue >= 41) reading.classList.add("temp-warm");
+      const cls = tier("max_drive_c", temperatureValue);
+      if (cls) reading.classList.add(cls);
     }
     row.append(label, reading);
     return row;
@@ -138,6 +164,10 @@
     const temperatures = backend.temperatures && typeof backend.temperatures === "object"
       ? backend.temperatures
       : {};
+    // Adopt server-supplied thresholds (authoritative); keep defaults if absent.
+    if (data.thresholds && typeof data.thresholds === "object" && Object.keys(data.thresholds).length) {
+      thresholds = data.thresholds;
+    }
     const state = safety.state || "unknown";
 
     text(elements.safetyState, titleCase(state));
@@ -150,10 +180,10 @@
     text(elements.refresh, `Updated ${new Date().toLocaleTimeString()}`);
     text(elements.backend, `Backend: ${backend.backend || "unknown"}`);
 
-    temperature(elements.maxDrive, temperatures.max_drive_c, 41, 44);
-    temperature(elements.cpu, temperatures.cpu_c, 61, 70);
-    temperature(elements.board, temperatures.board_c, 55, 70);
-    temperature(elements.nvme, temperatures.nvme_c, 60, 75);
+    temperature(elements.maxDrive, "max_drive_c", temperatures.max_drive_c);
+    temperature(elements.cpu, "cpu_c", temperatures.cpu_c);
+    temperature(elements.board, "board_c", temperatures.board_c);
+    temperature(elements.nvme, "nvme_c", temperatures.nvme_c);
 
     const drives = Array.isArray(data.drives) ? data.drives : [];
     elements.driveGrid.replaceChildren();
