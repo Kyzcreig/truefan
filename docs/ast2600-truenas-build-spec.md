@@ -124,9 +124,9 @@ The agent runs a small policy loop and persists only non-secret override state a
 
 Thresholds, matching the external watchdog:
 
-- Hot: max HDD `>44°C` or CPU `>70°C` → force 100%.
-- Cooling band: previous hot incident and max HDD `41-44°C` or CPU `61-70°C` → 50%.
-- Recovered: max HDD `<=40°C` and CPU `<=60°C` → quiet 22%.
+- Hot: max HDD `>50°C` or CPU `>70°C` → force 100%.
+- Cooling band: previous hot incident and max HDD `46-50°C` or CPU `61-70°C` → 50%.
+- Recovered: max HDD `<=45°C` and CPU `<=60°C` → quiet 22%.
 - Sensor failure: fail closed. Never lower duty; permit only a request that raises/holds the known current duty. If current duty is unknown, command 100%.
 
 Manual control:

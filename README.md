@@ -19,9 +19,9 @@ Safety takes priority over manual requests and persisted overrides:
 
 | State | Trigger | Effective policy |
 | --- | --- | --- |
-| Hot | Max HDD above 44°C or CPU above 70°C | Force 100% |
+| Hot | Max HDD above 50°C or CPU above 70°C | Force 100% |
 | Cooling | A prior hot incident has not recovered | At least 50% |
-| Recovered/normal | Max HDD at or below 40°C and CPU at or below 60°C | Quiet 22% unless an unexpired safe override applies |
+| Recovered/normal | Max HDD at or below 45°C and CPU at or below 60°C | Quiet 22% unless an unexpired safe override applies |
 | Sensor failure | Either required source fails | Never lower known duty; use 100% if current duty is unknown |
 
 Manual duty is 22–100%. Overrides default to 300 seconds and accept 1–900 seconds. Quiet, Cooling, and Emergency are one-shot overrides at 22%, 50%, and 100%. A low request during a hot incident returns `409 safety_locked` without a low-duty write. Every accepted mutation reports requested duty, effective duty, reason, mode, and verified read-back.

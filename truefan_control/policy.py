@@ -19,15 +19,28 @@ MAX_TTL_SECONDS = 900
 # the display-only warm/hot tiers let the dashboard colour every sensor from ONE
 # authoritative place (previously duplicated as magic numbers in dashboard.js).
 # Per-device ranges are intentionally distinct — a CPU tolerates far more than an HDD.
-HOT_DRIVE_C = 44        # max HDD above this -> hot (fans forced 100%)
+#
+# Drive numbers are spec-derived (owner ruling 2026-09-30, t_e859c8a0). Every device
+# that feeds max_drive_c is rated to at least 60 C operating (drive-reported):
+#   Seagate Exos X16 ST16000NM001G  5-60 C  (X16 SATA Product Manual, Operating temperature)
+#   Seagate Exos X18 ST16000NM000J  5-60 C  (Exos X18 data sheet DS2045)
+#   Intel D3-S4510 SSDSC2KB019T8     0-70 C
+# DRIVE_SPEC_MAX_C is the LOWEST of those and bounds the whole fleet.
+# Old values (rollback): hot 44 / warm 41 / recover 40. Recover 40 was below the
+# measured fans-100% steady state (46 C, 2026-09-29), so a hot incident never cleared.
+DRIVE_SPEC_MAX_C = 60
+HOT_DRIVE_C = 50        # max drive above this -> hot (fans forced 100%); 10 C under spec
 HOT_CPU_C = 70          # cpu above this -> hot
-RECOVER_DRIVE_C = 40    # both must fall to/below these to clear a hot incident
+RECOVER_DRIVE_C = 45    # both must fall to/below these to clear a hot incident
 RECOVER_CPU_C = 60
+# Measured fans-100% drive max plateau (2026-09-29 19:4x-20:04 PT). Recovery must sit at
+# or above it, or 100% fans can never bring the drives back under RECOVER_DRIVE_C.
+FULL_FAN_STEADY_DRIVE_C = 45
 
 # {sensor_key: {"warm": x, "hot": y}} — consumed by /status and the dashboard.
 # drive/cpu "hot" mirror the safety numbers above (kept in sync via the refs below).
 THRESHOLDS = {
-    "max_drive_c": {"warm": 41, "hot": HOT_DRIVE_C},
+    "max_drive_c": {"warm": 46, "hot": HOT_DRIVE_C},
     "cpu_c": {"warm": 61, "hot": HOT_CPU_C},
     "board_c": {"warm": 55, "hot": 70},
     "nvme_c": {"warm": 60, "hot": 75},
