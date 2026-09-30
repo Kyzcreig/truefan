@@ -18,7 +18,7 @@ def test_readme_is_an_operator_guide_for_both_backends_and_fail_safe_contract():
         "TRUENAS_USER_FILE",
         "TRUENAS_PASSWORD_FILE",
         "22%",
-        "44°C",
+        "50°C",
         "70°C",
         "900",
         "External watchdog",

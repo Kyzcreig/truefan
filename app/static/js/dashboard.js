@@ -7,7 +7,7 @@
   // Fallback thresholds ONLY if /status doesn't carry them (older agent). The
   // server (truefan_control/policy.py THRESHOLDS) is the authoritative source.
   const DEFAULT_THRESHOLDS = {
-    max_drive_c: { warm: 41, hot: 44 },
+    max_drive_c: { warm: 46, hot: 50 },
     cpu_c: { warm: 61, hot: 70 },
     board_c: { warm: 55, hot: 70 },
     nvme_c: { warm: 60, hot: 75 },
@@ -115,8 +115,8 @@
   }
 
   const LOCK_EXPLANATIONS = {
-    hot_threshold: "Hot threshold: a drive is above 44°C or CPU above 70°C. Fans are forced to 100% and only the Emergency profile is accepted until drives cool to ≤40°C and CPU to ≤60°C.",
-    cooling_band: "Cooling: recovering from a hot incident. Duty is held at ≥50% until drives reach ≤40°C and CPU ≤60°C.",
+    hot_threshold: "Hot threshold: a drive is above 50°C or CPU above 70°C. Fans are forced to 100% and only the Emergency profile is accepted until drives cool to ≤45°C and CPU to ≤60°C.",
+    cooling_band: "Cooling: recovering from a hot incident. Duty is held at ≥50% until drives reach ≤45°C and CPU ≤60°C.",
     sensor_failure_fail_closed: "Sensor failure: temperature readings are unavailable, so lowering fan duty is refused (fail-closed).",
     "status unavailable": "The dashboard cannot reach the control agent. Monitoring and control are unavailable.",
     "Agent offline": "The control agent is offline. Fan control is unavailable; monitoring may be stale.",

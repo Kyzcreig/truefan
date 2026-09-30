@@ -36,7 +36,7 @@ AGENT_DATA = {
         "override_expires_at": 2000,
     },
     "thresholds": {
-        "max_drive_c": {"warm": 41, "hot": 44},
+        "max_drive_c": {"warm": 46, "hot": 50},
         "cpu_c": {"warm": 61, "hot": 70},
     },
 }
@@ -77,7 +77,7 @@ def test_status_has_legacy_top_level_fields_and_structured_contract(monkeypatch)
     assert payload["agent_available"] is True
     # thresholds from the agent must propagate to the browser (single source of truth)
     assert payload["thresholds"]["cpu_c"] == {"warm": 61, "hot": 70}
-    assert payload["thresholds"]["max_drive_c"] == {"warm": 41, "hot": 44}
+    assert payload["thresholds"]["max_drive_c"] == {"warm": 46, "hot": 50}
 
 
 def test_monitoring_degrades_honestly_when_agent_is_unavailable(monkeypatch):
