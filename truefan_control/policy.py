@@ -48,6 +48,16 @@ THRESHOLDS = {
 }
 
 
+def _is_hot(value, threshold) -> bool:
+    if value is None or isinstance(value, bool):
+        return False
+    try:
+        reading = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(reading) and reading > threshold
+
+
 class SafetyLocked(RuntimeError):
     code = "safety_locked"
 
@@ -174,6 +184,22 @@ class SafetyPolicy:
             override_expiry = float(override["expires_at"]) if override else None
             cpu_c, drive_c = self._required_temperatures(status)
 
+            # A hot reading forces 100% even when another source failed. The sensor-failure
+            # branch below only holds the current duty, so a failed drive read (TrueNAS WS
+            # timeout under load) with a valid 90 C CPU reading used to leave the fans at 22%
+            # (t_59d5e3a8; same class as nas-fan-watch t_dc2d8acf).
+            if _is_hot(cpu_c, HOT_CPU_C) or _is_hot(drive_c, HOT_DRIVE_C):
+                if not self._state.get("previous_hot"):
+                    self._state["previous_hot"] = True
+                    self._save()
+                return SafetyDecision(
+                    "hot",
+                    100,
+                    "hot_threshold",
+                    controls_locked=requested_duty is None or requested_duty < 100,
+                    override_expires_at=override_expiry,
+                )
+
             if not status.sensor_ok or cpu_c is None or drive_c is None:
                 if status.duty_percent is None:
                     effective = 100
@@ -192,18 +218,6 @@ class SafetyPolicy:
 
             cpu_c = float(cpu_c)
             drive_c = float(drive_c)
-            if drive_c > HOT_DRIVE_C or cpu_c > HOT_CPU_C:
-                if not self._state.get("previous_hot"):
-                    self._state["previous_hot"] = True
-                    self._save()
-                return SafetyDecision(
-                    "hot",
-                    100,
-                    "hot_threshold",
-                    controls_locked=requested_duty is None or requested_duty < 100,
-                    override_expires_at=override_expiry,
-                )
-
             recovered = drive_c <= RECOVER_DRIVE_C and cpu_c <= RECOVER_CPU_C
             if self._state.get("previous_hot") and not recovered:
                 candidate = requested_duty if requested_duty is not None else override_duty

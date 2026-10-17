@@ -1,10 +1,13 @@
 import copy
+import logging
 import threading
 from typing import Dict, Optional
 
 from .backend import FanBackend
 from .policy import SafetyPolicy, THRESHOLDS
 
+
+LOGGER = logging.getLogger("truefan-control")
 
 PROFILES = {"quiet": 22, "cooling": 50, "emergency": 100}
 
@@ -17,6 +20,27 @@ class ControlService:
         self._snapshot_lock = threading.Lock()
         self._last_status: Optional[Dict[str, object]] = None
         self._last_status_error: Optional[str] = None
+        self._last_transition = None
+
+    def _log_transition(self, before, decision, readback) -> None:
+        # One line per policy transition, so "did the loop see the reading, and what did it
+        # write" is answerable from the container log (t_59d5e3a8 could not answer it).
+        key = (decision.state, decision.effective_duty, bool(before.sensor_ok))
+        if key == self._last_transition:
+            return
+        self._last_transition = key
+        temps = before.temperatures or {}
+        LOGGER.warning(
+            "policy state=%s duty=%s reason=%s sensor_ok=%s cpu_c=%s max_drive_c=%s mode=%s readback=%s",
+            decision.state,
+            decision.effective_duty,
+            decision.reason,
+            before.sensor_ok,
+            temps.get("cpu_c"),
+            temps.get("max_drive_c"),
+            readback.mode,
+            readback.duty_percent,
+        )
 
     def _publish_status(self, payload: Dict[str, object]) -> Dict[str, object]:
         # Attach the authoritative thresholds so /status is the single source the
@@ -84,6 +108,7 @@ class ControlService:
                 readback = before
                 if before.mode != "manual" or before.duty_percent != decision.effective_duty:
                     readback = self.backend.set_duty_percent(decision.effective_duty)
+                self._log_transition(before, decision, readback)
                 return self._publish_status(
                     {
                         "backend": readback.to_dict(),
